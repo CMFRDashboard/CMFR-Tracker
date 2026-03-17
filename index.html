@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#09090f">
+<title>CMFR · Fleet Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════
+   DESIGN TOKENS — identical to apparatus-checks-v2
+═══════════════════════════════════════════════════════════ */
+:root {
+  --bg:          #09090f;
+  --surface:     #111119;
+  --card:        #1c1c28;
+  --card-hi:     #242434;
+  --overlay:     rgba(0,0,0,0.76);
+
+  --sep:         rgba(255,255,255,0.07);
+  --border:      rgba(255,255,255,0.1);
+  --border-hi:   rgba(255,255,255,0.16);
+
+  --red:         #c41e3a;
+  --red-dark:    #9b1528;
+  --red-bg:      rgba(196,30,58,0.12);
+  --red-border:  rgba(196,30,58,0.28);
+
+  --pass:        #30d158;
+  --pass-bg:     rgba(48,209,88,0.12);
+  --pass-border: rgba(48,209,88,0.28);
+  --fail:        #ff453a;
+  --fail-bg:     rgba(255,69,58,0.12);
+  --fail-border: rgba(255,69,58,0.28);
+  --warn:        #ff9f0a;
+  --warn-bg:     rgba(255,159,10,0.12);
+  --warn-border: rgba(255,159,10,0.28);
+  --info:        #0a84ff;
+  --info-bg:     rgba(10,132,255,0.12);
+  --info-border: rgba(10,132,255,0.28);
+  --purple:      #bf5af2;
+  --teal:        #5ac8fa;
+
+  --text-1:      #f5f5f7;
+  --text-2:      #98989d;
+  --text-3:      #636366;
+  --text-4:      #3a3a3c;
+
+  --fd: 'Barlow Condensed', sans-serif;
+  --fs: 'DM Sans', sans-serif;
+  --fm: 'JetBrains Mono', monospace;
+
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-io:     cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast:    160ms;
+  --dur-mid:     260ms;
+  --dur-slow:    360ms;
+
+  --safe-top:    env(safe-area-inset-top, 0px);
+  --safe-bot:    env(safe-area-inset-bottom, 0px);
+  --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESET
+═══════════════════════════════════════════════════════════ */
+*,*::before,*::after { box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased; }
+html,body { height:100%;overflow:hidden;background:var(--bg);color:var(--text-1);font-family:var(--fs);font-size:16px; }
+button { cursor:pointer;border:none;background:none;color:inherit;font-family:inherit; }
+input  { font-family:inherit;font-size:16px; }
+
+/* ═══════════════════════════════════════════════════════════
+   APP SHELL
+═══════════════════════════════════════════════════════════ */
+#app { position:fixed;inset:0;overflow:hidden; }
+
+.view {
+  position:absolute;inset:0;display:flex;flex-direction:column;overflow:hidden;
+  background:var(--bg);
+  will-change:transform,opacity;
+  transition:transform var(--dur-mid) var(--ease-out),opacity var(--dur-mid) var(--ease-out);
+}
+.view          { transform:translateX(100%);opacity:0;pointer-events:none; }
+.view.active   { transform:translateX(0);  opacity:1;pointer-events:all; }
+.view.back-exit{ transform:translateX(100%);opacity:0; }
+
+#pin-view.active { transform:none; }
+
+.scroll-pane { flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain; }
+.scroll-pane::-webkit-scrollbar { display:none; }
+
+/* ═══════════════════════════════════════════════════════════
+   PIN VIEW  (exact match to checks-v2)
+═══════════════════════════════════════════════════════════ */
+#pin-view {
+  align-items:center;justify-content:center;
+  padding:max(32px,var(--safe-top)) 28px max(32px,var(--safe-bot));
+  gap:0;background:var(--bg);
+}
+.pin-glow {
+  position:absolute;top:8%;left:50%;transform:translateX(-50%);
+  width:340px;height:340px;pointer-events:none;
+  background:radial-gradient(circle,rgba(196,30,58,0.13) 0%,transparent 70%);
+}
+.pin-logo { width:80px;height:80px;margin-bottom:16px;position:relative;z-index:1; }
+.pin-title { font-family:var(--fd);font-size:28px;font-weight:900;letter-spacing:.05em;text-transform:uppercase;text-align:center;color:var(--text-1);position:relative;z-index:1; }
+.pin-sub   { font-family:var(--fd);font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--red);text-align:center;margin-top:4px;margin-bottom:36px;position:relative;z-index:1; }
+.pin-dots  { display:flex;gap:16px;justify-content:center;margin-bottom:32px;position:relative;z-index:1; }
+.pin-dot   { width:13px;height:13px;border-radius:50%;background:transparent;border:1.5px solid var(--border-hi);transition:all var(--dur-fast) var(--ease-spring); }
+.pin-dot.filled { background:var(--red);border-color:var(--red);transform:scale(1.15);box-shadow:0 0 12px rgba(196,30,58,.45); }
+.pin-dot.error  { background:var(--fail);border-color:var(--fail);animation:dotShake .45s var(--ease-io); }
+@keyframes dotShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-5px)} 50%{transform:translateX(5px)} 70%{transform:translateX(-3px)} 90%{transform:translateX(3px)} }
+.pin-grid  { display:grid;grid-template-columns:repeat(3,1fr);gap:11px;width:100%;max-width:272px;position:relative;z-index:1; }
+.pin-key   { height:70px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);color:var(--text-1);font-family:var(--fd);font-size:32px;font-weight:700;display:flex;align-items:center;justify-content:center;user-select:none;transition:transform var(--dur-fast) var(--ease-spring),background var(--dur-fast),border-color var(--dur-fast); }
+.pin-key:active { transform:scale(.91);background:var(--card-hi);border-color:var(--border-hi); }
+.pin-key.zero { grid-column:2; }
+.pin-key.del  { background:transparent;border-color:transparent;color:var(--text-2);font-size:22px; }
+.pin-key.del:active { background:var(--card);border-color:var(--border); }
+.pin-fb { min-height:20px;margin-top:16px;font-size:13px;color:var(--fail);text-align:center;opacity:0;transition:opacity var(--dur-fast);position:relative;z-index:1; }
+.pin-fb.show { opacity:1; }
+
+/* ═══════════════════════════════════════════════════════════
+   GREETING VIEW
+═══════════════════════════════════════════════════════════ */
+#greet-view { background:var(--bg); }
+.gh-hero {
+  background:linear-gradient(155deg,var(--red-dark) 0%,var(--red) 55%,#e0244b 100%);
+  padding:max(52px,calc(var(--safe-top) + 36px)) 28px 48px;
+  position:relative;overflow:hidden;flex-shrink:0;
+}
+.gh-hero::before { content:'';position:absolute;top:-80px;right:-80px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.06);pointer-events:none; }
+.gh-hero::after  { content:'';position:absolute;bottom:-24px;left:0;right:0;height:48px;background:var(--bg);clip-path:ellipse(54% 100% at 50% 100%); }
+.gh-ts   { font-family:var(--fm);font-size:11px;color:rgba(255,255,255,.55);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px; }
+.gh-sal  { font-family:var(--fd);font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.7);margin-bottom:2px; }
+.gh-name { font-family:var(--fd);font-size:58px;font-weight:900;line-height:.93;text-transform:uppercase;color:#fff;letter-spacing:-.01em; }
+.gh-role { font-size:14px;color:rgba(255,255,255,.65);margin-top:10px;font-weight:500;display:flex;align-items:center;gap:8px; }
+.gh-shift-badge { background:rgba(255,255,255,.18);border-radius:5px;padding:2px 8px;font-family:var(--fd);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.85); }
+.gh-body  { padding:44px 20px max(28px,var(--safe-bot));display:flex;flex-direction:column;gap:12px;flex:1;overflow-y:auto; }
+.gh-slabel { font-family:var(--fd);font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--text-3);padding:0 4px 6px; }
+.gh-cta   { display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-xl);padding:20px;text-align:left;width:100%;transition:transform var(--dur-fast) var(--ease-spring),background var(--dur-fast),border-color var(--dur-fast); }
+.gh-cta.primary { background:linear-gradient(135deg,rgba(196,30,58,.16),rgba(196,30,58,.08));border-color:var(--red-border); }
+.gh-cta.info    { background:linear-gradient(135deg,rgba(10,132,255,.14),rgba(10,132,255,.06));border-color:var(--info-border); }
+.gh-cta:active  { transform:scale(.975); }
+.cta-ico  { font-size:40px;line-height:1;flex-shrink:0;width:52px;text-align:center; }
+.cta-ttl  { font-family:var(--fd);font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-1);line-height:1.1; }
+.cta-dsc  { font-size:13px;color:var(--text-2);margin-top:3px;line-height:1.4; }
+.cta-arr  { margin-left:auto;color:var(--text-3);font-size:18px;flex-shrink:0; }
+.gh-signout { margin-top:8px;color:var(--text-3);font-size:13px;text-align:center;padding:12px;width:100%; }
+
+/* ═══════════════════════════════════════════════════════════
+   DASHBOARD VIEW
+═══════════════════════════════════════════════════════════ */
+#dash-view { background:var(--bg); }
+
+/* Sticky dashboard header */
+.dash-hd {
+  background:rgba(9,9,15,.94);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--sep);
+  padding:max(16px,calc(var(--safe-top)+10px)) 18px 14px;
+  flex-shrink:0;position:relative;z-index:20;
+}
+.dash-hd-row1 { display:flex;align-items:center;gap:12px; }
+.dash-back  { width:34px;height:34px;border-radius:50%;background:var(--card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:16px;flex-shrink:0;transition:transform var(--dur-fast) var(--ease-spring),background var(--dur-fast); }
+.dash-back:active { transform:scale(.9);background:var(--card-hi); }
+.dash-hd-title { flex:1; }
+.dash-hd-name  { font-family:var(--fd);font-size:22px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-1);line-height:1.1; }
+.dash-hd-sub   { font-family:var(--fm);font-size:10px;color:var(--text-3);margin-top:2px;letter-spacing:.08em; }
+.dash-hd-checks-btn {
+  display:flex;align-items:center;gap:7px;
+  background:var(--red);color:#fff;
+  border-radius:var(--r-md);padding:9px 14px;
+  font-family:var(--fd);font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  flex-shrink:0;
+  transition:transform var(--dur-fast) var(--ease-spring),background var(--dur-fast);
+}
+.dash-hd-checks-btn:active { transform:scale(.95);background:var(--red-dark); }
+
+/* Shift strip below header */
+.shift-strip {
+  display:flex;align-items:center;gap:10px;
+  padding:10px 18px 0;flex-shrink:0;
+}
+.shift-pill {
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--fm);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  padding:5px 10px;border-radius:8px;
+}
+.sp-date { background:var(--card);color:var(--text-2);border:1px solid var(--border); }
+.sp-shift { background:var(--red-bg);color:var(--red);border:1px solid var(--red-border); }
+.sp-live  { background:var(--pass-bg);color:var(--pass);border:1px solid var(--pass-border); }
+.live-dot { width:6px;height:6px;border-radius:50%;background:var(--pass);animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+
+/* Dashboard body padding */
+.dash-body { padding:16px 14px max(80px,calc(var(--safe-bot)+64px)); }
+
+/* ─── FLEET METRICS ─────────────────────────── */
+.metrics-grid {
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+  margin-bottom:20px;
+}
+.metric-card {
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);
+  padding:16px 16px 14px;
+  position:relative;overflow:hidden;
+  transition:transform var(--dur-fast) var(--ease-spring);
+}
+.metric-card:active { transform:scale(.97); }
+.metric-card::before { content:'';position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;opacity:.08;pointer-events:none; }
+.mc-total  { }
+.mc-checked::before { background:var(--pass); }
+.mc-pending::before { background:var(--warn); }
+.mc-defs::before    { background:var(--fail); }
+.mc-oos::before     { background:var(--text-3); }
+.metric-num  { font-family:var(--fd);font-size:48px;font-weight:900;line-height:1;margin-bottom:4px; }
+.mc-total .metric-num   { color:var(--text-1); }
+.mc-checked .metric-num { color:var(--pass); }
+.mc-pending .metric-num { color:var(--warn); }
+.mc-defs .metric-num    { color:var(--fail); }
+.mc-oos .metric-num     { color:var(--text-2); }
+.metric-lbl  { font-family:var(--fm);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3); }
+.metric-bar  { height:2px;background:var(--border);border-radius:1px;margin-top:12px;overflow:hidden; }
+.metric-bar-fill { height:100%;border-radius:1px;transition:width .8s var(--ease-out); }
+.mc-checked .metric-bar-fill { background:var(--pass); }
+.mc-pending .metric-bar-fill { background:var(--warn); }
+.mc-defs .metric-bar-fill    { background:var(--fail); }
+
+/* ─── SECTION LABEL ──────────────────────────── */
+.section-hd {
+  display:flex;align-items:center;gap:10px;
+  font-family:var(--fd);font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--text-3);
+  padding:18px 4px 8px;
+}
+.section-hd::after { content:'';flex:1;height:1px;background:var(--sep); }
+
+/* ─── STATION CARDS ──────────────────────────── */
+.station-card {
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r-lg);
+  margin-bottom:10px;overflow:hidden;
+  transition:border-color var(--dur-mid);
+}
+.station-card.has-issues { border-color:rgba(255,159,10,.25); }
+.station-card.has-fail   { border-color:rgba(255,69,58,.25); }
+
+.station-header {
+  display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;
+  transition:background var(--dur-fast);user-select:none;
+}
+.station-header:active { background:var(--card-hi); }
+
+.station-num {
+  font-family:var(--fd);font-size:34px;font-weight:900;color:var(--red);
+  line-height:1;flex-shrink:0;width:40px;text-align:center;
+}
+.station-info { flex:1;min-width:0; }
+.station-name { font-family:var(--fd);font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;line-height:1.1; }
+.station-meta { font-family:var(--fm);font-size:10px;color:var(--text-3);margin-top:3px; }
+
+/* Completion ring */
+.station-ring-wrap { flex-shrink:0;position:relative;width:44px;height:44px; }
+.station-ring { width:44px;height:44px; }
+.sr-bg   { fill:none;stroke:var(--border);stroke-width:3; }
+.sr-fill { fill:none;stroke-width:3;stroke-linecap:round;stroke-dasharray:100;transform-origin:center;transform:rotate(-90deg);transition:stroke-dashoffset .8s var(--ease-out),stroke .4s; }
+.station-ring-pct {
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--fm);font-size:9px;font-weight:500;color:var(--text-2);
+}
+
+.station-chevron { color:var(--text-4);font-size:14px;flex-shrink:0;transition:transform var(--dur-mid) var(--ease-io); }
+.station-card.open .station-chevron { transform:rotate(90deg); }
+
+/* Apparatus rows container */
+.apparatus-list {
+  max-height:0;overflow:hidden;
+  transition:max-height var(--dur-mid) var(--ease-io);
+}
+.station-card.open .apparatus-list {
+  max-height:2000px;
+  transition:max-height .5s var(--ease-out);
+}
+.apparatus-list-inner { border-top:1px solid var(--sep); }
+
+/* Individual apparatus row */
+.app-row {
+  display:flex;align-items:center;gap:12px;padding:13px 16px;
+  position:relative;cursor:pointer;
+  transition:background var(--dur-fast);
+}
+.app-row:not(:last-child)::after { content:'';position:absolute;bottom:0;left:56px;right:0;height:1px;background:var(--sep); }
+.app-row:active { background:rgba(255,255,255,.04); }
+.app-row.oos { opacity:.55; }
+
+.app-type-ico {
+  width:36px;height:36px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;flex-shrink:0;
+}
+.app-info { flex:1;min-width:0; }
+.app-name  { font-family:var(--fd);font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text-1);line-height:1.1; }
+.app-unit  { font-family:var(--fm);font-size:9px;color:var(--text-3);margin-top:3px; }
+.app-status-wrap { flex-shrink:0;display:flex;align-items:center;gap:8px; }
+.app-chevron { color:var(--text-4);font-size:12px; }
+
+/* Status badge — compact pill */
+.status-badge {
+  font-family:var(--fd);font-size:11px;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;padding:4px 9px;border-radius:20px;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px;
+}
+.sb-checked { background:var(--pass-bg);color:var(--pass);border:1px solid var(--pass-border); }
+.sb-pending { background:var(--warn-bg);color:var(--warn);border:1px solid var(--warn-border); }
+.sb-overdue { background:var(--fail-bg);color:var(--fail);border:1px solid var(--fail-border); }
+.sb-oos     { background:rgba(152,152,157,.1);color:var(--text-2);border:1px solid rgba(152,152,157,.2); }
+.sb-def     { background:var(--fail-bg);color:var(--fail);border:1px solid var(--fail-border); }
+.sb-dot     { width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0; }
+
+/* ─── OOS QUICK TOGGLE ───────────────────────── */
+.oos-toggle-btn {
+  width:30px;height:30px;border-radius:50%;
+  background:var(--card-hi);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;flex-shrink:0;
+  transition:all var(--dur-fast) var(--ease-spring);
+}
+.oos-toggle-btn:active { transform:scale(.88); }
+.oos-toggle-btn.active { background:var(--fail-bg);border-color:var(--fail-border);color:var(--fail); }
+
+/* ─── ACTIVITY FEED ──────────────────────────── */
+.activity-feed { display:flex;flex-direction:column;gap:0; }
+.activity-card {
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);
+  padding:13px 16px;margin-bottom:8px;cursor:pointer;
+  transition:background var(--dur-fast);
+}
+.activity-card:active { background:var(--card-hi); }
+.ac-top { display:flex;align-items:flex-start;justify-content:space-between;gap:10px; }
+.ac-name { font-family:var(--fd);font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:.03em; }
+.ac-time { font-family:var(--fm);font-size:10px;color:var(--text-3);flex-shrink:0;margin-top:2px; }
+.ac-meta { display:flex;gap:8px;margin-top:6px;flex-wrap:wrap; }
+.ac-pill { font-family:var(--fm);font-size:10px;padding:3px 8px;border-radius:6px; }
+.ac-pill.clean { background:var(--pass-bg);color:var(--pass);border:1px solid var(--pass-border); }
+.ac-pill.defs  { background:var(--fail-bg);color:var(--fail);border:1px solid var(--fail-border); }
+.ac-pill.op    { background:var(--card-hi);color:var(--text-2);border:1px solid var(--border); }
+
+.empty-feed {
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:36px 20px;color:var(--text-3);font-size:13px;text-align:center;
+}
+.empty-ico { font-size:40px;opacity:.4; }
+
+/* ─── FLOATING ACTION BUTTON ─────────────────── */
+.fab {
+  position:fixed;bottom:max(24px,calc(var(--safe-bot)+16px));right:18px;
+  width:60px;height:60px;border-radius:50%;z-index:50;
+  background:var(--red);
+  box-shadow:0 6px 28px rgba(196,30,58,.4),0 2px 8px rgba(0,0,0,.4);
+  display:flex;align-items:center;justify-content:center;
+  font-size:26px;
+  transition:transform var(--dur-fast) var(--ease-spring),box-shadow var(--dur-fast),opacity var(--dur-fast);
+}
+.fab:active { transform:scale(.92); }
+.fab.hidden { opacity:0;pointer-events:none;transform:scale(.8); }
+
+/* ═══════════════════════════════════════════════════════════
+   APPARATUS DETAIL DRAWER (slide up from bottom)
+═══════════════════════════════════════════════════════════ */
+.drawer-overlay {
+  position:fixed;inset:0;z-index:80;
+  background:var(--overlay);
+  opacity:0;pointer-events:none;
+  transition:opacity var(--dur-mid);
+}
+.drawer-overlay.open { opacity:1;pointer-events:all; }
+
+.drawer {
+  position:fixed;bottom:0;left:0;right:0;z-index:90;
+  background:var(--surface);
+  border-top:1px solid var(--border);
+  border-radius:24px 24px 0 0;
+  padding:0 0 max(32px,var(--safe-bot));
+  max-height:88vh;overflow-y:auto;
+  transform:translateY(100%);
+  transition:transform var(--dur-slow) var(--ease-out);
+  -webkit-overflow-scrolling:touch;
+}
+.drawer.open { transform:translateY(0); }
+.drawer::-webkit-scrollbar { display:none; }
+
+.drawer-handle {
+  width:36px;height:4px;border-radius:2px;
+  background:var(--border-hi);
+  margin:12px auto 0;
+}
+.drawer-hd {
+  display:flex;align-items:center;gap:14px;
+  padding:18px 20px 14px;
+  border-bottom:1px solid var(--sep);
+}
+.drawer-app-ico { width:50px;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0; }
+.drawer-title { flex:1; }
+.drawer-app-name { font-family:var(--fd);font-size:26px;font-weight:900;text-transform:uppercase;letter-spacing:.03em;color:var(--text-1);line-height:1; }
+.drawer-app-meta { font-family:var(--fm);font-size:10px;color:var(--text-3);margin-top:5px; }
+.drawer-close {
+  width:34px;height:34px;border-radius:50%;
+  background:var(--card);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;color:var(--text-2);flex-shrink:0;
+  transition:all var(--dur-fast) var(--ease-spring);
+}
+.drawer-close:active { transform:scale(.88); }
+
+.drawer-body { padding:16px 20px; }
+
+.drawer-last-check {
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r-md);padding:14px 16px;margin-bottom:12px;
+}
+.dlc-hd { font-family:var(--fd);font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px; }
+.dlc-stats { display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px; }
+.dlc-stat {}
+.dlc-num { font-family:var(--fd);font-size:32px;font-weight:900;line-height:1;margin-bottom:2px; }
+.dlc-num.pass  { color:var(--pass); }
+.dlc-num.fail  { color:var(--fail); }
+.dlc-num.total { color:var(--text-1); }
+.dlc-label { font-family:var(--fm);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3); }
+.dlc-meta-row { display:flex;justify-content:space-between;font-size:12px;color:var(--text-2);padding-top:8px;border-top:1px solid var(--sep); }
+.no-check-msg { color:var(--text-3);font-size:13px;padding:8px 0; }
+
+.drawer-defs { margin-bottom:12px; }
+.def-item { background:var(--fail-bg);border:1px solid var(--fail-border);border-radius:var(--r-sm);padding:10px 13px;margin-bottom:7px; }
+.def-item-label { font-size:13px;font-weight:600;color:var(--text-1); }
+.def-item-note  { font-size:12px;color:var(--text-2);margin-top:3px; }
+
+.drawer-actions { display:flex;flex-direction:column;gap:10px; }
+.d-btn {
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  width:100%;border-radius:var(--r-lg);
+  font-family:var(--fd);font-size:18px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+  padding:16px;transition:transform var(--dur-fast) var(--ease-spring),background var(--dur-fast);
+}
+.d-btn:active { transform:scale(.97); }
+.d-btn.primary { background:var(--red);color:#fff;border:1px solid transparent; }
+.d-btn.oos-on  { background:var(--fail-bg);color:var(--fail);border:1px solid var(--fail-border); }
+.d-btn.oos-off { background:var(--pass-bg);color:var(--pass);border:1px solid var(--pass-border); }
+.d-btn.ghost   { background:var(--card);color:var(--text-2);border:1px solid var(--border); }
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE — tablet / desktop
+═══════════════════════════════════════════════════════════ */
+@media (min-width: 640px) {
+  .metrics-grid { grid-template-columns:repeat(4,1fr); }
+  .dash-body { padding:20px 20px max(80px,calc(var(--safe-bot)+64px)); }
+  .station-grid-2col {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .station-grid-2col .station-card { margin-bottom:0; }
+  .drawer { max-width:520px;left:50%;transform:translateX(-50%) translateY(100%); }
+  .drawer.open { transform:translateX(-50%) translateY(0); }
+}
+@media (min-width: 1024px) {
+  body { overflow:auto; }
+  .view { position:relative;transform:none !important;opacity:1;pointer-events:all;transition:none; }
+  #pin-view, #greet-view { display:none; }
+  #pin-view.active, #greet-view.active { display:flex; }
+  #dash-view.active { position:fixed;inset:0; }
+  .dash-body { max-width:960px;margin:0 auto; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════════════════════════════════════════
+    VIEW 1: PIN
+  ══════════════════════════════════════════════════ -->
+  <div id="pin-view" class="view active">
+    <div class="pin-glow"></div>
+    <div class="pin-logo">
+      <svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+        <defs>
+          <linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#c41e3a"/><stop offset="100%" stop-color="#9b1528"/>
+          </linearGradient>
+          <filter id="sh"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(196,30,58,0.4)"/></filter>
+        </defs>
+        <polygon points="40,4 74,21 74,59 40,76 6,59 6,21" fill="url(#lg)" filter="url(#sh)"/>
+        <polygon points="40,4 74,21 74,59 40,76 6,59 6,21" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1"/>
+        <text x="40" y="30" text-anchor="middle" fill="rgba(255,255,255,0.85)" font-family="Barlow Condensed" font-weight="700" font-size="9" letter-spacing="1.5">COSTA MESA</text>
+        <text x="40" y="44" text-anchor="middle" fill="white" font-family="Barlow Condensed" font-weight="900" font-size="13" letter-spacing="0.5">FIRE &amp;</text>
+        <text x="40" y="57" text-anchor="middle" fill="white" font-family="Barlow Condensed" font-weight="900" font-size="13" letter-spacing="0.5">RESCUE</text>
+      </svg>
+    </div>
+    <div class="pin-title">Fleet Dashboard</div>
+    <div class="pin-sub">Costa Mesa Fire &amp; Rescue</div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="pd0"></div>
+      <div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div>
+      <div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-grid">
+      <button class="pin-key" onclick="pressPin('1')">1</button>
+      <button class="pin-key" onclick="pressPin('2')">2</button>
+      <button class="pin-key" onclick="pressPin('3')">3</button>
+      <button class="pin-key" onclick="pressPin('4')">4</button>
+      <button class="pin-key" onclick="pressPin('5')">5</button>
+      <button class="pin-key" onclick="pressPin('6')">6</button>
+      <button class="pin-key" onclick="pressPin('7')">7</button>
+      <button class="pin-key" onclick="pressPin('8')">8</button>
+      <button class="pin-key" onclick="pressPin('9')">9</button>
+      <button class="pin-key zero" onclick="pressPin('0')">0</button>
+      <button class="pin-key del"  onclick="deletePin()">⌫</button>
+    </div>
+    <div class="pin-fb" id="pin-fb"></div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+    VIEW 2: GREETING
+  ══════════════════════════════════════════════════ -->
+  <div id="greet-view" class="view">
+    <div class="gh-hero">
+      <div class="gh-ts"  id="gh-ts"></div>
+      <div class="gh-sal" id="gh-sal">Good Morning,</div>
+      <div class="gh-name" id="gh-name">Andrew</div>
+      <div class="gh-role">
+        <span id="gh-role">Battalion Chief</span>
+        <span class="gh-shift-badge" id="gh-shift">A Shift</span>
+      </div>
+    </div>
+    <div class="gh-body">
+      <div class="gh-slabel">Where do you need to go?</div>
+      <button class="gh-cta info" onclick="showDashboard()">
+        <span class="cta-ico">📊</span>
+        <div>
+          <div class="cta-ttl">Fleet Dashboard</div>
+          <div class="cta-dsc">Apparatus status, check completion &amp; activity</div>
+        </div>
+        <span class="cta-arr">›</span>
+      </button>
+      <button class="gh-cta primary" onclick="toChecks()">
+        <span class="cta-ico">🚒</span>
+        <div>
+          <div class="cta-ttl">Perform Checks</div>
+          <div class="cta-dsc">CDL &amp; NFPA daily apparatus inspection</div>
+        </div>
+        <span class="cta-arr">›</span>
+      </button>
+      <button class="gh-signout" onclick="signOut()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+    VIEW 3: DASHBOARD
+  ══════════════════════════════════════════════════ -->
+  <div id="dash-view" class="view">
+
+    <!-- Sticky header -->
+    <div class="dash-hd">
+      <div class="dash-hd-row1">
+        <button class="dash-back" onclick="backToGreeting()">‹</button>
+        <div class="dash-hd-title">
+          <div class="dash-hd-name">Fleet Status</div>
+          <div class="dash-hd-sub" id="dh-sub">Costa Mesa Fire &amp; Rescue</div>
+        </div>
+        <button class="dash-hd-checks-btn" onclick="toChecks()">
+          <span>+</span> Checks
+        </button>
+      </div>
+      <div class="shift-strip">
+        <div class="shift-pill sp-date" id="sp-date">Tue · Mar 17</div>
+        <div class="shift-pill sp-shift" id="sp-shift">A Shift</div>
+        <div class="shift-pill sp-live"><span class="live-dot"></span>Live</div>
+      </div>
+    </div>
+
+    <!-- Scrollable dashboard body -->
+    <div class="scroll-pane">
+      <div class="dash-body">
+
+        <!-- Metrics row -->
+        <div class="metrics-grid" id="metrics-grid">
+          <div class="metric-card mc-total">
+            <div class="metric-num" id="m-total">27</div>
+            <div class="metric-lbl">Total Units</div>
+            <div class="metric-bar"><div class="metric-bar-fill" style="width:100%;background:var(--border-hi)"></div></div>
+          </div>
+          <div class="metric-card mc-checked">
+            <div class="metric-num" id="m-checked">0</div>
+            <div class="metric-lbl">Checked Today</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="mb-checked" style="width:0%"></div></div>
+          </div>
+          <div class="metric-card mc-pending">
+            <div class="metric-num" id="m-pending">27</div>
+            <div class="metric-lbl">Pending</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="mb-pending" style="width:100%"></div></div>
+          </div>
+          <div class="metric-card mc-defs">
+            <div class="metric-num" id="m-defs">0</div>
+            <div class="metric-lbl">Deficiencies</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="mb-defs" style="width:0%"></div></div>
+          </div>
+        </div>
+
+        <!-- Station fleet -->
+        <div class="section-hd">Fleet by Station</div>
+        <div id="station-list"></div>
+
+        <!-- Activity feed -->
+        <div class="section-hd" style="margin-top:8px">Today's Activity</div>
+        <div class="activity-feed" id="activity-feed">
+          <div class="empty-feed">
+            <div class="empty-ico">📋</div>
+            <div>No inspections completed yet today</div>
+            <div style="font-size:12px;color:var(--text-4)">Checks will appear here as they're submitted</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- FAB: quick start check -->
+    <button class="fab" id="dash-fab" onclick="toChecks()" title="Start Apparatus Check">🚒</button>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ═══════════════════════════════════════════════════════════
+   APPARATUS DETAIL DRAWER
+═══════════════════════════════════════════════════════════ -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="detail-drawer">
+  <div class="drawer-handle"></div>
+  <div class="drawer-hd">
+    <div class="drawer-app-ico" id="dr-ico">🚒</div>
+    <div class="drawer-title">
+      <div class="drawer-app-name" id="dr-name">Engine 85</div>
+      <div class="drawer-app-meta" id="dr-meta">Unit 527 · Station 5 · 2023 Pierce Arrow XT</div>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+    <!-- Last check summary -->
+    <div class="drawer-last-check" id="dr-last-check">
+      <div class="dlc-hd">Last Inspection</div>
+      <div class="no-check-msg">No inspection on record for today.</div>
+    </div>
+
+    <!-- Deficiencies if any -->
+    <div class="drawer-defs" id="dr-defs" style="display:none"></div>
+
+    <!-- Actions -->
+    <div class="drawer-actions">
+      <button class="d-btn primary" id="dr-check-btn" onclick="startCheckForApparatus()">🔍 Start Inspection</button>
+      <button class="d-btn" id="dr-oos-btn" onclick="toggleOOS()">⚙️ Mark Out of Service</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════
+   CONFIG
+═══════════════════════════════════════════════════════════ */
+const CFG = {
+  checksUrl: 'apparatus-checks-v2.html',
+  users: [
+    { name: 'Andrew',   pin: '1234', role: 'Battalion Chief', shift: 'A' },
+    { name: 'Engineer', pin: '5678', role: 'Engineer',        shift: 'B' },
+  ]
+};
+
+/* ═══════════════════════════════════════════════════════════
+   APPARATUS ROSTER  (27 real units, all stations)
+═══════════════════════════════════════════════════════════ */
+const ROSTER = [
+  // Station 1
+  { id:'u510', name:'Battalion 9',     station:1, type:'battalion',       unit:'Unit 510', make:'2020 Chevrolet'         },
+  { id:'u520', name:'Engine 81',       station:1, type:'engine',          unit:'Unit 520', make:'2016 Pierce Arrow XT'   },
+  { id:'u562', name:'Ambulance',       station:1, type:'ambulance',       unit:'Unit 562', make:'2025 Ford'              },
+  { id:'u556', name:'SE Ambulance',    station:1, type:'ambulance',       unit:'Unit 556', make:'2013 Int\'l Navistar'   },
+  { id:'u514', name:'Reserve Engine',  station:1, type:'reserve_engine',  unit:'Unit 514', make:'2007 American LaFrance' },
+  // Station 2
+  { id:'u528', name:'Engine 82',       station:2, type:'engine',          unit:'Unit 528', make:'2018 Pierce Arrow XT'   },
+  { id:'u525', name:'Reserve Truck',   station:2, type:'truck',           unit:'Unit 525', make:'2006 American LaFrance' },
+  // Station 3
+  { id:'u526', name:'Engine 83',       station:3, type:'engine',          unit:'Unit 526', make:'2016 Pierce Arrow XT'   },
+  { id:'u570', name:'OES 415',         station:3, type:'oes',             unit:'Unit 570', make:'2018 HME'               },
+  { id:'u523', name:'Reserve Engine',  station:3, type:'reserve_engine',  unit:'Unit 523', make:'2003 American LaFrance' },
+  { id:'u557', name:'Ambulance',       station:3, type:'ambulance',       unit:'Unit 557', make:'2023 Ford'              },
+  // Station 4
+  { id:'u572', name:'OES 1607',        station:4, type:'oes',             unit:'Unit 572', make:'2020 Type 6'            },
+  { id:'u559', name:'Rescue 84',       station:4, type:'rescue',          unit:'Unit 559', make:'2024 Crestline'         },
+  { id:'u509', name:'Utility 84',      station:4, type:'utility',         unit:'Unit 509', make:'2008 Ford F-250'        },
+  { id:'u524', name:'Reserve Engine',  station:4, type:'reserve_engine',  unit:'Unit 524', make:'Pierce'                 },
+  { id:'u560', name:'Ambulance',       station:4, type:'ambulance',       unit:'Unit 560', make:'Ambulance'              },
+  { id:'u529', name:'Truck 84',        station:4, type:'truck',           unit:'Unit 529', make:'2023 Pierce Arrow XT'   },
+  // Station 5
+  { id:'u527', name:'Engine 85',       station:5, type:'engine',          unit:'Unit 527', make:'2023 Pierce Arrow XT'   },
+  { id:'u571', name:'OES 1312',        station:5, type:'oes',             unit:'Unit 571', make:'2020 BME Model 34'      },
+  { id:'u558', name:'Ambulance',       station:5, type:'ambulance',       unit:'Unit 558', make:'2023 Ford Crestline'    },
+  { id:'u551', name:'SE Ambulance',    station:5, type:'ambulance',       unit:'Unit 551', make:'Special Event'          },
+  // Station 6
+  { id:'u517', name:'Truck 86',        station:6, type:'truck',           unit:'Unit 517', make:'2010 Pierce TDA'        },
+  { id:'u522', name:'USAR 86',         station:6, type:'usar',            unit:'Unit 522', make:'2002 American LaFrance' },
+  { id:'u541', name:'USAR Trailer',    station:6, type:'usar_trailer',    unit:'Unit 541', make:'2002 Hackney Trailer'   },
+  // Corp Yard
+  { id:'u561', name:'Ambulance',       station:0, type:'ambulance',       unit:'Unit 561', make:'Ambulance'              },
+  { id:'u515', name:'Reserve Engine',  station:0, type:'reserve_engine',  unit:'Unit 515', make:'American LaFrance'      },
+  { id:'u511', name:'Battalion 8',     station:0, type:'battalion',       unit:'Unit 511', make:'2017 Chevrolet'         },
+];
+
+const STATIONS = [
+  { id:1, label:'Station 1', short:'S1' },
+  { id:2, label:'Station 2', short:'S2' },
+  { id:3, label:'Station 3', short:'S3' },
+  { id:4, label:'Station 4', short:'S4' },
+  { id:5, label:'Station 5', short:'S5' },
+  { id:6, label:'Station 6', short:'S6' },
+  { id:0, label:'Corp Yard', short:'CY' },
+];
+
+const TYPE_META = {
+  engine:        { icon:'🚒', label:'Engine',    bg:'rgba(48,209,88,0.14)'  },
+  truck:         { icon:'🏗️', label:'Truck',     bg:'rgba(10,132,255,0.14)' },
+  usar:          { icon:'🔧', label:'USAR',      bg:'rgba(255,159,10,0.14)' },
+  oes:           { icon:'🌲', label:'OES',       bg:'rgba(191,90,242,0.14)' },
+  ambulance:     { icon:'🚑', label:'Amb',       bg:'rgba(90,200,245,0.14)' },
+  reserve_engine:{ icon:'🚒', label:'Reserve',   bg:'rgba(152,152,157,0.1)' },
+  battalion:     { icon:'🚐', label:'BC',        bg:'rgba(196,30,58,0.14)'  },
+  rescue:        { icon:'⛑️', label:'Rescue',    bg:'rgba(255,159,10,0.14)' },
+  utility:       { icon:'🔩', label:'Utility',   bg:'rgba(152,152,157,0.1)' },
+  usar_trailer:  { icon:'🚛', label:'Trailer',   bg:'rgba(152,152,157,0.1)' },
+};
+
+/* ═══════════════════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════════════════ */
+const S = {
+  user:            null,
+  oosSet:          new Set(),   // apparatus IDs marked OOS
+  drawerApp:       null,        // currently open drawer apparatus
+  checksToday:     [],          // from localStorage
+  deficiencies:    {},          // { apparatusName: [def, ...] }
+  openStations:    new Set([1,5,6]), // expanded by default
+};
+let pinBuf = '';
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════════ */
+const DAYS  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONS  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function fmtDate(d) { return `${DAYS[d.getDay()]} · ${MONS[d.getMonth()]} ${d.getDate()}`; }
+function fmtTime(d) { return d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}); }
+function greetWord()  { const h=new Date().getHours(); return h<12?'Good Morning':h<17?'Good Afternoon':'Good Evening'; }
+function shortDate(d) {
+  const x = (typeof d === 'string') ? new Date(d) : d;
+  return `${MONS[x.getMonth()]} ${x.getDate()} · ${fmtTime(x)}`;
+}
+function todayStr()   { const d=new Date(); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+
+const haptic = {
+  light:   ()=>navigator.vibrate&&navigator.vibrate(8),
+  medium:  ()=>navigator.vibrate&&navigator.vibrate(16),
+  success: ()=>navigator.vibrate&&navigator.vibrate([10,30,10]),
+  error:   ()=>navigator.vibrate&&navigator.vibrate([30,10,30,10,30]),
+};
+
+/* ═══════════════════════════════════════════════════════════
+   NAVIGATION
+═══════════════════════════════════════════════════════════ */
+let currentView = 'pin-view';
+
+function showView(id) {
+  haptic.light();
+  const cur = document.getElementById(currentView);
+  if (cur && currentView !== 'pin-view') cur.classList.add('back-exit');
+  setTimeout(()=>{ document.querySelectorAll('.view.back-exit').forEach(v=>v.classList.remove('back-exit','active')); }, 300);
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  currentView = id;
+}
+
+function backToGreeting() {
+  haptic.light();
+  const cur = document.getElementById('dash-view');
+  cur.style.transition = 'transform 240ms cubic-bezier(.4,0,.2,1),opacity 240ms ease';
+  cur.style.transform = 'translateX(100%)';
+  cur.style.opacity = '0';
+  setTimeout(()=>{
+    cur.classList.remove('active');
+    cur.style.transform = '';
+    cur.style.opacity = '';
+    cur.style.transition = '';
+  }, 260);
+  const prev = document.getElementById('greet-view');
+  prev.style.transition = 'none';
+  prev.style.transform = 'translateX(-20%)';
+  prev.style.opacity = '.4';
+  prev.classList.add('active');
+  requestAnimationFrame(()=>{
+    prev.style.transition = 'transform 280ms cubic-bezier(.16,1,.3,1),opacity 280ms ease';
+    prev.style.transform = '';
+    prev.style.opacity = '';
+    setTimeout(()=>prev.style.transition='',300);
+  });
+  currentView = 'greet-view';
+}
+
+function showDashboard() {
+  loadChecksData();
+  loadOOS();
+  renderDashboard();
+  showView('dash-view');
+}
+
+function toChecks()    { window.location.href = CFG.checksUrl; }
+function signOut()     { S.user=null; pinBuf=''; updateDots(); document.getElementById('pin-fb').classList.remove('show'); showView('pin-view'); }
+
+/* ═══════════════════════════════════════════════════════════
+   PIN
+═══════════════════════════════════════════════════════════ */
+function pressPin(d) {
+  if (pinBuf.length>=4) return;
+  haptic.light();
+  pinBuf += d;
+  updateDots();
+  if (pinBuf.length===4) setTimeout(validatePin, 150);
+}
+function deletePin() {
+  if (!pinBuf.length) return;
+  haptic.light();
+  pinBuf = pinBuf.slice(0,-1);
+  updateDots();
+  document.getElementById('pin-fb').classList.remove('show');
+  document.querySelectorAll('.pin-dot').forEach(d=>d.classList.remove('error'));
+}
+function updateDots() {
+  for (let i=0;i<4;i++) {
+    const d = document.getElementById(`pd${i}`);
+    d.classList.toggle('filled', i<pinBuf.length);
+    d.classList.remove('error');
+  }
+}
+function validatePin() {
+  const user = CFG.users.find(u=>u.pin===pinBuf);
+  pinBuf=''; updateDots();
+  if (user) {
+    S.user = user; haptic.success();
+    showGreeting();
+  } else {
+    haptic.error();
+    document.querySelectorAll('.pin-dot').forEach(d=>{ d.classList.remove('filled'); d.classList.add('error'); });
+    const fb = document.getElementById('pin-fb');
+    fb.textContent = 'Incorrect PIN — try again';
+    fb.classList.add('show');
+    setTimeout(()=>{ document.querySelectorAll('.pin-dot').forEach(d=>d.classList.remove('error')); fb.classList.remove('show'); }, 1200);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GREETING
+═══════════════════════════════════════════════════════════ */
+function showGreeting() {
+  const now = new Date();
+  const ts = `${DAYS[now.getDay()].toUpperCase()} · ${MONS[now.getMonth()]} ${now.getDate()} · ${fmtTime(now)}`;
+  document.getElementById('gh-ts').textContent  = ts;
+  document.getElementById('gh-sal').textContent = `${greetWord()},`;
+  document.getElementById('gh-name').textContent = S.user.name;
+  document.getElementById('gh-role').textContent  = S.user.role;
+  document.getElementById('gh-shift').textContent = `${S.user.shift||'A'} Shift`;
+  showView('greet-view');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DATA — read from localStorage (written by apparatus-checks-v2)
+═══════════════════════════════════════════════════════════ */
+function loadChecksData() {
+  S.checksToday = [];
+  S.deficiencies = {};
+  try {
+    const idx = JSON.parse(localStorage.getItem('cmfr_index') || '[]');
+    const today = todayStr();
+    idx.forEach(entry => {
+      const raw = localStorage.getItem(entry.id);
+      if (!raw) return;
+      const rec = JSON.parse(raw);
+      // Only today's checks
+      const recDate = new Date(rec.ts);
+      const recStr  = `${recDate.getFullYear()}-${recDate.getMonth()}-${recDate.getDate()}`;
+      if (recStr !== today) return;
+      S.checksToday.push(rec);
+      if (rec.deficiencies && rec.deficiencies.length) {
+        const key = rec.apparatus + ' ' + rec.unitId;
+        S.deficiencies[key] = rec.deficiencies;
+      }
+    });
+  } catch(e) { console.warn('loadChecksData:', e); }
+}
+
+function loadOOS() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('cmfr_oos') || '[]');
+    S.oosSet = new Set(saved);
+  } catch(e) { S.oosSet = new Set(); }
+}
+
+function saveOOS() {
+  try { localStorage.setItem('cmfr_oos', JSON.stringify([...S.oosSet])); } catch(e) {}
+}
+
+function getCheckForApparatus(app) {
+  // Most recent check today for this apparatus
+  return S.checksToday
+    .filter(r => r.apparatus === app.name && r.unitId === app.unit)
+    .sort((a,b) => new Date(b.ts) - new Date(a.ts))[0] || null;
+}
+
+function getStatusForApp(app) {
+  if (S.oosSet.has(app.id)) return 'oos';
+  const check = getCheckForApparatus(app);
+  if (!check) return 'pending';
+  if (check.deficiencies && check.deficiencies.length > 0) return 'def';
+  return 'checked';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER DASHBOARD
+═══════════════════════════════════════════════════════════ */
+function renderDashboard() {
+  const now = new Date();
+
+  // Header sub
+  document.getElementById('dh-sub').textContent = `${S.user.name} · ${S.user.role}`;
+
+  // Shift strip
+  document.getElementById('sp-date').textContent  = fmtDate(now).replace('·','·');
+  document.getElementById('sp-shift').textContent = `${S.user.shift||'A'} Shift`;
+
+  // Compute metrics
+  const total   = ROSTER.length;
+  let checked   = 0, pending = 0, defs = 0, oos = 0;
+  ROSTER.forEach(app => {
+    const st = getStatusForApp(app);
+    if (st === 'checked') checked++;
+    else if (st === 'oos') oos++;
+    else if (st === 'def') { checked++; defs++; }
+    else pending++;
+  });
+
+  document.getElementById('m-total').textContent   = total;
+  document.getElementById('m-checked').textContent = checked;
+  document.getElementById('m-pending').textContent = pending;
+  document.getElementById('m-defs').textContent    = defs;
+
+  const pct = total ? checked/total*100 : 0;
+  requestAnimationFrame(()=>{
+    document.getElementById('mb-checked').style.width = `${pct}%`;
+    document.getElementById('mb-pending').style.width = `${pending/total*100}%`;
+    document.getElementById('mb-defs').style.width    = defs > 0 ? `${Math.max(20,defs/checked*100)}%` : '0%';
+  });
+
+  // Station list
+  renderStations();
+
+  // Activity feed
+  renderActivity();
+}
+
+function renderStations() {
+  const list = document.getElementById('station-list');
+  list.innerHTML = '';
+
+  STATIONS.forEach(stn => {
+    const units = ROSTER.filter(a => a.station === stn.id);
+    const statuses = units.map(a => getStatusForApp(a));
+    const checkedCount = statuses.filter(s => s==='checked'||s==='def').length;
+    const hasFail   = statuses.some(s => s==='def');
+    const hasIssues = statuses.some(s => s==='pending'||s==='overdue');
+    const pct       = units.length ? checkedCount/units.length*100 : 0;
+    const ringColor = pct===100 ? 'var(--pass)' : pct>0 ? 'var(--warn)' : 'var(--text-4)';
+    const circum    = 2*Math.PI*17; // ~106.8
+    const dashOffset= circum - (pct/100*circum);
+    const isOpen    = S.openStations.has(stn.id);
+
+    const card = document.createElement('div');
+    card.className = `station-card${hasFail?' has-fail':hasIssues?' has-issues':''}${isOpen?' open':''}`;
+    card.id = `stn-${stn.id}`;
+
+    const unitRows = units.map(app => {
+      const st   = getStatusForApp(app);
+      const meta = TYPE_META[app.type] || { icon:'🚗', bg:'rgba(152,152,157,0.1)' };
+      const check = getCheckForApparatus(app);
+      const timeStr = check ? shortDate(check.ts) : '';
+
+      let badge = '';
+      if (st==='checked') badge = `<span class="status-badge sb-checked"><span class="sb-dot"></span>Checked</span>`;
+      else if (st==='def') badge = `<span class="status-badge sb-def"><span class="sb-dot"></span>Deficiency</span>`;
+      else if (st==='oos') badge = `<span class="status-badge sb-oos">OOS</span>`;
+      else badge = `<span class="status-badge sb-pending">Pending</span>`;
+
+      return `
+        <div class="app-row${st==='oos'?' oos':''}" onclick="openDrawer('${app.id}')">
+          <div class="app-type-ico" style="background:${meta.bg}">${meta.icon}</div>
+          <div class="app-info">
+            <div class="app-name">${app.name}</div>
+            <div class="app-unit">${app.unit}${timeStr?' · '+timeStr:''}</div>
+          </div>
+          <div class="app-status-wrap">
+            ${badge}
+            <span class="app-chevron">›</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="station-header" onclick="toggleStation(${stn.id})">
+        <div class="station-num">${stn.id===0?'⚙':stn.id}</div>
+        <div class="station-info">
+          <div class="station-name">${stn.label}</div>
+          <div class="station-meta">${units.length} unit${units.length!==1?'s':''} · ${checkedCount} checked</div>
+        </div>
+        <div class="station-ring-wrap">
+          <svg class="station-ring" viewBox="0 0 44 44">
+            <circle class="sr-bg" cx="22" cy="22" r="17"/>
+            <circle class="sr-fill" cx="22" cy="22" r="17"
+              style="stroke:${ringColor};stroke-dasharray:${circum};stroke-dashoffset:${dashOffset}"/>
+          </svg>
+          <div class="station-ring-pct">${Math.round(pct)}%</div>
+        </div>
+        <span class="station-chevron">›</span>
+      </div>
+      <div class="apparatus-list">
+        <div class="apparatus-list-inner">${unitRows}</div>
+      </div>`;
+
+    list.appendChild(card);
+  });
+}
+
+function toggleStation(id) {
+  haptic.light();
+  const card = document.getElementById(`stn-${id}`);
+  if (S.openStations.has(id)) {
+    S.openStations.delete(id);
+    card.classList.remove('open');
+  } else {
+    S.openStations.add(id);
+    card.classList.add('open');
+  }
+}
+
+function renderActivity() {
+  const feed = document.getElementById('activity-feed');
+  if (!S.checksToday.length) {
+    feed.innerHTML = `
+      <div class="empty-feed">
+        <div class="empty-ico">📋</div>
+        <div>No inspections completed yet today</div>
+        <div style="font-size:12px;color:var(--text-4)">Checks will appear here as they're submitted</div>
+      </div>`;
+    return;
+  }
+
+  const sorted = [...S.checksToday].sort((a,b) => new Date(b.ts)-new Date(a.ts));
+  feed.innerHTML = sorted.map(rec => {
+    const hasDefs = rec.deficiencies && rec.deficiencies.length > 0;
+    const passed  = (rec.items||[]).filter(i=>i.val==='pass').length;
+    const failed  = (rec.items||[]).filter(i=>i.val==='fail').length;
+    return `
+      <div class="activity-card" onclick="openDrawerById('${rec.apparatus}','${rec.unitId}')">
+        <div class="ac-top">
+          <div class="ac-name">${rec.apparatus} <span style="color:var(--text-3);font-size:14px;font-weight:400">${rec.unitId}</span></div>
+          <div class="ac-time">${shortDate(rec.ts)}</div>
+        </div>
+        <div class="ac-meta">
+          <span class="ac-pill ${hasDefs?'defs':'clean'}">${hasDefs?`${rec.deficiencies.length} def${rec.deficiencies.length>1?'s':''}':'✓ Clean'}</span>
+          <span class="ac-pill op">${rec.operator}</span>
+          <span class="ac-pill op">${passed}P · ${failed}F</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   APPARATUS DETAIL DRAWER
+═══════════════════════════════════════════════════════════ */
+function openDrawer(appId) {
+  haptic.light();
+  const app = ROSTER.find(a => a.id === appId);
+  if (!app) return;
+  S.drawerApp = app;
+  populateDrawer(app);
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('detail-drawer').classList.add('open');
+}
+
+function openDrawerById(name, unit) {
+  haptic.light();
+  const app = ROSTER.find(a => a.name===name && a.unit===unit);
+  if (!app) return;
+  openDrawer(app.id);
+}
+
+function closeDrawer() {
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('detail-drawer').classList.remove('open');
+  S.drawerApp = null;
+}
+
+function populateDrawer(app) {
+  const meta   = TYPE_META[app.type] || { icon:'🚗', bg:'rgba(152,152,157,0.1)' };
+  const isOOS  = S.oosSet.has(app.id);
+  const check  = getCheckForApparatus(app);
+
+  // Header
+  const ico = document.getElementById('dr-ico');
+  ico.textContent = meta.icon;
+  ico.style.background = meta.bg;
+  document.getElementById('dr-name').textContent = app.name;
+  document.getElementById('dr-meta').textContent = `${app.unit} · ${app.station===0?'Corp Yard':'Station '+app.station} · ${app.make}`;
+
+  // Last check
+  const lc = document.getElementById('dr-last-check');
+  if (check) {
+    const passed  = (check.items||[]).filter(i=>i.val==='pass').length;
+    const failed  = (check.items||[]).filter(i=>i.val==='fail').length;
+    const total   = (check.items||[]).length;
+    lc.innerHTML = `
+      <div class="dlc-hd">Last Inspection</div>
+      <div class="dlc-stats">
+        <div class="dlc-stat"><div class="dlc-num total">${total}</div><div class="dlc-label">Total</div></div>
+        <div class="dlc-stat"><div class="dlc-num pass">${passed}</div><div class="dlc-label">Passed</div></div>
+        <div class="dlc-stat"><div class="dlc-num fail">${failed}</div><div class="dlc-label">Failed</div></div>
+      </div>
+      <div class="dlc-meta-row">
+        <span>${check.operator} · ${check.role}</span>
+        <span>${shortDate(check.ts)}</span>
+      </div>`;
+  } else {
+    lc.innerHTML = `<div class="dlc-hd">Last Inspection</div><div class="no-check-msg">No inspection on record for today.</div>`;
+  }
+
+  // Deficiencies
+  const defs = check?.deficiencies || [];
+  const defsEl = document.getElementById('dr-defs');
+  if (defs.length) {
+    defsEl.style.display = 'block';
+    defsEl.innerHTML = `
+      <div class="dlc-hd" style="padding:0 0 8px">Deficiencies</div>
+      ${defs.map(d=>`
+        <div class="def-item">
+          <div class="def-item-label">${d.label}</div>
+          ${d.note?`<div class="def-item-note">${d.note}</div>`:''}
+        </div>`).join('')}`;
+  } else {
+    defsEl.style.display = 'none';
+  }
+
+  // OOS button
+  const oosBtn = document.getElementById('dr-oos-btn');
+  if (isOOS) {
+    oosBtn.className = 'd-btn oos-off';
+    oosBtn.innerHTML = '✅ Return to Service';
+  } else {
+    oosBtn.className = 'd-btn oos-on';
+    oosBtn.innerHTML = '🔴 Mark Out of Service';
+  }
+
+  // Check button label
+  const checkBtn = document.getElementById('dr-check-btn');
+  checkBtn.innerHTML = check ? '🔄 Re-Inspect' : '🔍 Start Inspection';
+}
+
+function toggleOOS() {
+  haptic.medium();
+  if (!S.drawerApp) return;
+  const id = S.drawerApp.id;
+  if (S.oosSet.has(id)) { S.oosSet.delete(id); } else { S.oosSet.add(id); }
+  saveOOS();
+  populateDrawer(S.drawerApp);
+  renderStations();
+}
+
+function startCheckForApparatus() {
+  haptic.medium();
+  closeDrawer();
+  setTimeout(()=>{ window.location.href = CFG.checksUrl; }, 200);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AUTO-REFRESH every 60 seconds while dashboard is open
+═══════════════════════════════════════════════════════════ */
+let refreshInterval = null;
+
+function startRefresh() {
+  stopRefresh();
+  refreshInterval = setInterval(() => {
+    if (currentView === 'dash-view') {
+      loadChecksData();
+      renderDashboard();
+    }
+  }, 60_000);
+}
+function stopRefresh() {
+  if (refreshInterval) { clearInterval(refreshInterval); refreshInterval = null; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   KEYBOARD (desktop PIN entry)
+═══════════════════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (currentView !== 'pin-view') return;
+  if (e.key >= '0' && e.key <= '9') pressPin(e.key);
+  if (e.key === 'Backspace') deletePin();
+});
+
+/* ═══════════════════════════════════════════════════════════
+   SWIPE DOWN TO CLOSE DRAWER
+═══════════════════════════════════════════════════════════ */
+(function() {
+  let startY = 0;
+  const drawer = document.getElementById('detail-drawer');
+  drawer.addEventListener('touchstart', e=>{ startY=e.touches[0].clientY; }, {passive:true});
+  drawer.addEventListener('touchend', e=>{
+    if (e.changedTouches[0].clientY - startY > 60) closeDrawer();
+  }, {passive:true});
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  startRefresh();
+
+  // If navigated back from checks app with user still in state (sessionStorage)
+  try {
+    const saved = sessionStorage.getItem('cmfr_user');
+    if (saved) {
+      const u = JSON.parse(saved);
+      const match = CFG.users.find(x => x.pin === u.pin);
+      if (match) { S.user = match; showDashboard(); }
+    }
+  } catch(e) {}
+});
+
+// Save user to sessionStorage so back-navigation from checks works
+document.addEventListener('visibilitychange', () => {
+  if (S.user) {
+    try { sessionStorage.setItem('cmfr_user', JSON.stringify(S.user)); } catch(e) {}
+  }
+});
+</script>
+</body>
+</html>
