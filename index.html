@@ -11,7 +11,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <style>
 /* ═══════════════════════════════════════════════
-   DESIGN TOKENS — CMFR v3
+   DESIGN TOKENS — CMFR v4
 ═══════════════════════════════════════════════ */
 :root {
   --red:    #C0392B;
@@ -1471,7 +1471,7 @@ body.is-admin .bn-post-alert-btn{display:flex;}
 <div class="toast" id="toast"></div>
 
 <script>
-// CMFR OPERATIONS HUB v3.0
+// CMFR OPERATIONS HUB v4.0
 
 
 // §1  FIREBASE CONFIG & HELPERS
@@ -2830,7 +2830,7 @@ let advanceTargetId=null,editingMemberId=null,editingPpeId=null,editingTaskId=nu
 let currentApp='apparatus',currentPrPage='personnel';
 let checkState={},completedChecks={};
 let miniCalDate=new Date(),miniCalSelected=null,miniCalEventCache={};
-let calEvents=[],linksData=[...DEFAULT_LINKS,...OC_ANNEX_LINKS];
+let calEvents=[],linksData=[...DEFAULT_LINKS];
 let editingLinkId=null,selectedLinkColor='#EFF6FF';
 const TODAY=new Date();TODAY.setHours(0,0,0,0);
 const PPET=new Date();
@@ -2881,7 +2881,6 @@ document.addEventListener('keydown',e=>{
 // INIT
 // ══════════════════════════════════════════════════════════
 function initApp(){
-  loadAnnouncement();
   loadAnnouncement();
   // logos are inline SVG divs — no src assignment needed
   const h=new Date().getHours(),g=h<12?'Good Morning':h<17?'Good Afternoon':'Good Evening';
@@ -2949,7 +2948,7 @@ function ap_id_safe_single(id){return id.replace(/[^a-zA-Z0-9_]/g,'_');}
 const PROMO_CYCLE={Annual:365,Probationary:90};
 const ROLE_LABELS={admin:'Admin',bc:'BC',captain:'Captain',engineer:'Engineer',readonly:'Read only'};
 const ROLE_LEVEL={readonly:1,engineer:2,captain:3,bc:4,admin:5};
-function unitType(name){const n=name.toLowerCase();if(n.includes('usar'))return 'usar';if(n.includes('oes')&&(n.includes('1607')||n.includes('type 6')||n.includes('t6')))return 'oes6';if(n.includes('oes'))return 'oes';if(n.includes('engine'))return 'engine';if(n.includes('truck'))return 'truck';if(n.includes('ambulance')||n.includes('amb')||n.includes('rescue'))return 'amb';if(n.includes('battalion')||n.includes(' bc')||n.startsWith('bc'))return 'bc';if(n.includes('utility'))return 'utility';if(n.includes('special'))return 'special';if(n.includes('reserve'))return 'reserve';if(n.includes('admin'))return 'admin';return 'engine';}
+function unitType(name){if(!name)return 'engine';const n=name.toLowerCase();if(n.includes('usar'))return 'usar';if(n.includes('oes')&&(n.includes('1607')||n.includes('type 6')||n.includes('t6')))return 'oes6';if(n.includes('oes'))return 'oes';if(n.includes('engine'))return 'engine';if(n.includes('truck'))return 'truck';if(n.includes('ambulance')||n.includes('amb')||n.includes('rescue'))return 'amb';if(n.includes('battalion')||n.includes(' bc')||n.startsWith('bc'))return 'bc';if(n.includes('utility'))return 'utility';if(n.includes('special'))return 'special';if(n.includes('reserve'))return 'reserve';if(n.includes('admin'))return 'admin';return 'engine';}
 function unitIcon(name){const t=unitType(name);return UNIT_SVGS[t]||UNIT_SVGS.engine;}
 function unitBgColor(name){const t=unitType(name);return (UNIT_COLORS[t]||UNIT_COLORS.engine).bg;}
 function unitFgColor(name){const t=unitType(name);return (UNIT_COLORS[t]||UNIT_COLORS.engine).color;}
@@ -3037,7 +3036,8 @@ function unitSearch(q){
     const bg=(UNIT_COLORS[a.type]||UNIT_COLORS.engine).bg;
     const fg=(UNIT_COLORS[a.type]||UNIT_COLORS.engine).color;
     const lbl=a.label||a.name||a.id;
-    return `<div class="ss-search-row" data-ap-id="${a.id}" style="padding:12px 16px;cursor:pointer;border-bottom:.5px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:12px;" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background=''"><div style="width:48px;height:30px;border-radius:8px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;flex-shrink:0;">${unitIcon(a.name)}</div><div><div style="font-size:13px;font-weight:600;color:#fff;">${lbl}</div><div style="font-size:11px;color:rgba(255,255,255,.4);">Unit ${a.unit} · Station ${a.station}</div></div></div>`;
+    const iconSvg = a.type ? (UNIT_SVGS[a.type]||UNIT_SVGS.engine) : unitIcon(a.label||a.unit||'');
+    return `<div class="ss-search-row" data-ap-id="${a.id}" style="padding:12px 16px;cursor:pointer;border-bottom:.5px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:12px;" onmouseover="this.style.background='rgba(255,255,255,.06)'" onmouseout="this.style.background=''"><div style="width:48px;height:30px;border-radius:8px;background:${bg};color:${fg};display:flex;align-items:center;justify-content:center;flex-shrink:0;">${iconSvg}</div><div><div style="font-size:13px;font-weight:600;color:#fff;">${lbl}</div><div style="font-size:11px;color:rgba(255,255,255,.4);">Unit ${a.unit} · Station ${a.station}</div></div></div>`;
   }).join('');
   // Event delegation - safe onclick without SVG injection
   results.querySelectorAll('.ss-search-row').forEach(row=>{
